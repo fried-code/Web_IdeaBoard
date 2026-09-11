@@ -1,0 +1,129 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: #3e2b1f;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 20px;
+  background: #2c1e15;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.topbar h1 {
+  color: #f5e6c8;
+  font-size: 1.3rem;
+  margin: 0;
+}
+
+.add-form {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  max-width: 480px;
+}
+
+.add-form input {
+  flex: 1;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+
+.add-form button {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 6px;
+  background: #e0a458;
+  color: #2c1e15;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.add-form button:hover {
+  background: #f0b76a;
+}
+
+.board {
+  position: relative;
+  width: 100%;
+  min-height: calc(100vh - 70px);
+  background-color: #6b4a30;
+  background-image:
+    radial-gradient(rgba(0, 0, 0, 0.15) 1px, transparent 1px);
+  background-size: 6px 6px;
+  overflow: auto;
+}
+
+.empty-hint {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 1.1rem;
+  text-align: center;
+  pointer-events: none;
+}
+
+.note {
+  position: absolute;
+  width: 190px;
+  min-height: 150px;
+  padding: 16px 14px 30px;
+  border-radius: 3px;
+  box-shadow: 3px 4px 10px rgba(0, 0, 0, 0.35);
+  cursor: grab;
+  user-select: none;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  word-wrap: break-word;
+  transition: box-shadow 0.15s ease;
+}
+
+.note::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%) rotate(-3deg);
+  width: 36px;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: 2px;
+}
+
+.note.dragging {
+  cursor: grabbing;
+  box-shadow: 6px 8px 18px rgba(0, 0, 0, 0.5);
+  z-index: 100;
+}
+
+.note .delete-btn {
+  position: absolute;
+  bottom: 8px;
+  right: 10px;
+  background: none;
+  border: none;
+  font-size: 0.8rem;
+  color: rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.note .delete-btn:hover {
+  color: rgba(0, 0, 0, 0.8);
+}

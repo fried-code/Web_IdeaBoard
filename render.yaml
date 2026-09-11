@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: idea-board
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn app:app"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DB_PATH
+        value: /var/data/board.db
+    disk:
+      name: idea-board-disk
+      mountPath: /var/data
+      sizeGB: 1

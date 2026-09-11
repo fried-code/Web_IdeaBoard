@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Idea Board</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>💡 Idea Board</h1>
+    <form id="add-form" class="add-form">
+      <input
+        type="text"
+        id="note-text"
+        placeholder="Type a new idea and hit Enter..."
+        autocomplete="off"
+        required
+      />
+      <button type="submit">Add note</button>
+    </form>
+  </header>
+
+  <main id="board" class="board">
+    <!-- sticky notes get injected here by script.js -->
+  </main>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
