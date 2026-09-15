@@ -11,59 +11,94 @@ body {
 .topbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 14px 20px;
+  gap: 20px;
+  padding: 12px 20px;
   background: #2c1e15;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 200;
+  flex-wrap: wrap;
 }
 
 .topbar h1 {
   color: #f5e6c8;
   font-size: 1.3rem;
   margin: 0;
+  white-space: nowrap;
 }
 
-.add-form {
+.hint-line {
+  margin: 0;
+  padding: 6px 20px;
+  background: #241811;
+  color: rgba(245, 230, 200, 0.65);
+  font-size: 0.82rem;
+}
+
+.tabs {
   display: flex;
-  gap: 8px;
-  flex: 1;
-  max-width: 480px;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
-.add-form input {
-  flex: 1;
-  padding: 10px 12px;
+.tab {
+  padding: 8px 14px;
   border: none;
-  border-radius: 6px;
-  font-size: 0.95rem;
-}
-
-.add-form button {
-  padding: 10px 16px;
-  border: none;
-  border-radius: 6px;
-  background: #e0a458;
-  color: #2c1e15;
-  font-weight: 600;
+  border-radius: 6px 6px 0 0;
+  background: #4a3527;
+  color: #e8d8bd;
+  font-size: 0.9rem;
   cursor: pointer;
 }
 
-.add-form button:hover {
-  background: #f0b76a;
+.tab.active {
+  background: #e0a458;
+  color: #2c1e15;
+  font-weight: 600;
+}
+
+.tab:hover:not(.active) {
+  background: #5a4030;
+}
+
+.add-tab {
+  font-weight: 700;
+  font-size: 1.1rem;
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px dashed rgba(245, 230, 200, 0.4);
+  color: #f5e6c8;
+}
+
+.add-tab:hover {
+  background: rgba(245, 230, 200, 0.15);
+}
+
+.save-btn {
+  margin-left: auto;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 6px;
+  background: #6fae7b;
+  color: #10240f;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.save-btn:hover {
+  background: #7fc08b;
 }
 
 .board {
   position: relative;
   width: 100%;
-  min-height: calc(100vh - 70px);
+  min-height: calc(100vh - 110px);
   background-color: #6b4a30;
-  background-image:
-    radial-gradient(rgba(0, 0, 0, 0.15) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(0, 0, 0, 0.15) 1px, transparent 1px);
   background-size: 6px 6px;
   overflow: auto;
 }
@@ -83,14 +118,11 @@ body {
   position: absolute;
   width: 190px;
   min-height: 150px;
-  padding: 16px 14px 30px;
+  padding: 18px 14px;
   border-radius: 3px;
   box-shadow: 3px 4px 10px rgba(0, 0, 0, 0.35);
   cursor: grab;
-  user-select: none;
-  font-size: 0.95rem;
   line-height: 1.35;
-  word-wrap: break-word;
   transition: box-shadow 0.15s ease;
 }
 
@@ -104,26 +136,101 @@ body {
   height: 16px;
   background: rgba(255, 255, 255, 0.55);
   border-radius: 2px;
+  pointer-events: none;
 }
 
 .note.dragging {
   cursor: grabbing;
   box-shadow: 6px 8px 18px rgba(0, 0, 0, 0.5);
-  z-index: 100;
 }
 
-.note .delete-btn {
+.note-heading {
+  width: 100%;
+  font-weight: 700;
+  font-size: 1.02rem;
+  outline: none;
+  word-wrap: break-word;
+  cursor: text;
+  border-bottom: 1px dashed rgba(0, 0, 0, 0.25);
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+}
+
+.note-heading:empty::before {
+  content: 'Heading...';
+  color: rgba(0, 0, 0, 0.35);
+}
+
+.note-text {
+  width: 100%;
+  min-height: 80px;
+  outline: none;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  cursor: text;
+}
+
+.note-text:empty::before {
+  content: 'Type your idea...';
+  color: rgba(0, 0, 0, 0.35);
+}
+
+.note-text.editing {
+  cursor: text;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
+}
+
+/* Context menus */
+.context-menu {
   position: absolute;
-  bottom: 8px;
-  right: 10px;
-  background: none;
-  border: none;
-  font-size: 0.8rem;
-  color: rgba(0, 0, 0, 0.45);
-  cursor: pointer;
-  padding: 2px 6px;
+  z-index: 500;
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  padding: 6px;
+  min-width: 190px;
+  font-size: 0.88rem;
 }
 
-.note .delete-btn:hover {
-  color: rgba(0, 0, 0, 0.8);
+.context-menu.hidden {
+  display: none;
+}
+
+.context-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: none;
+  background: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #2c1e15;
+}
+
+.context-menu button:hover {
+  background: #f0e2c8;
+}
+
+.context-menu button.danger {
+  color: #c0392b;
+}
+
+.context-menu button.danger:hover {
+  background: #fbe0dd;
+}
+
+.context-menu .menu-section-label {
+  padding: 6px 10px 2px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.context-menu .menu-divider {
+  height: 1px;
+  background: rgba(0, 0, 0, 0.1);
+  margin: 4px 2px;
 }
