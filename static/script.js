@@ -155,15 +155,6 @@ function renderBoard() {
     });
 }
 
-function isNoteEmpty(note) {
-  if ((note.heading || '').trim()) return false;
-  if (note.type === 'note') return !((note.text || '').trim());
-  if (note.type === 'image') return !note.image;
-  if (note.type === 'bullets') return note.items.every((i) => !String(i).trim());
-  if (note.type === 'todo') return note.items.every((i) => !(i.text || '').trim());
-  return true;
-}
-
 // Grows a note to fit its content so it never needs an internal scrollbar.
 // Only grows, never shrinks automatically — a manual resize-down stays put
 // until new content actually needs more room again.
@@ -386,10 +377,6 @@ function rebuildListRows(listEl, note, type, focusIndex) {
       } else {
         note.items[index] = value;
       }
-      if (isNoteEmpty(note)) {
-        await deleteNote(note.id);
-        return;
-      }
       await saveNote(note, { items: note.items });
     });
 
@@ -448,13 +435,9 @@ function startEditingField(el, note, field, { onEnterNext } = {}) {
   document.execCommand('selectAll', false, null);
   const previousValue = note[field] || '';
 
-  async function commit(checkEmpty) {
+  async function commit() {
     const value = el.textContent.trim();
     note[field] = value;
-    if (checkEmpty && isNoteEmpty(note)) {
-      await deleteNote(note.id);
-      return;
-    }
     await saveNote(note, { [field]: value });
   }
 
@@ -463,20 +446,19 @@ function startEditingField(el, note, field, { onEnterNext } = {}) {
     el.classList.remove('editing');
     el.removeEventListener('blur', onBlur);
     el.removeEventListener('keydown', onKeydown);
-    await commit(true);
+    await commit();
   }
 
   function onKeydown(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (onEnterNext) {
-        // Moving to a sibling field within the same note: save what's here,
-        // but don't run the empty-note deletion check mid-navigation.
+        // Moving to a sibling field within the same note.
         el.removeEventListener('blur', onBlur);
         el.removeEventListener('keydown', onKeydown);
         el.contentEditable = 'false';
         el.classList.remove('editing');
-        commit(false);
+        commit();
         startEditingField(onEnterNext, note, 'text', {});
       } else {
         el.blur();
@@ -504,6 +486,7 @@ function makeDraggable(el, note) {
     if (e.button === 2) return;
     if (e.target.isContentEditable) return;
     if (e.target.tagName === 'INPUT') return;
+    if (e.target.closest('.note-image-placeholder')) return;
     dragging = true;
     moved = false;
     el.classList.add('dragging');
