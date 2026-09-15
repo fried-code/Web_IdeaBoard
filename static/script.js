@@ -148,7 +148,11 @@ function renderBoard() {
   notes
     .slice()
     .sort((a, b) => a.z_index - b.z_index)
-    .forEach((note) => board.appendChild(createNoteEl(note)));
+    .forEach((note) => {
+      const el = createNoteEl(note);
+      board.appendChild(el);
+      autoGrow(el);
+    });
 }
 
 function isNoteEmpty(note) {
@@ -158,6 +162,23 @@ function isNoteEmpty(note) {
   if (note.type === 'bullets') return note.items.every((i) => !String(i).trim());
   if (note.type === 'todo') return note.items.every((i) => !(i.text || '').trim());
   return true;
+}
+
+// Grows a note to fit its content so it never needs an internal scrollbar.
+// Only grows, never shrinks automatically — a manual resize-down stays put
+// until new content actually needs more room again.
+function autoGrow(noteEl) {
+  if (!noteEl) return;
+  const needed = noteEl.scrollHeight;
+  if (needed > noteEl.clientHeight) {
+    noteEl.style.height = needed + 'px';
+  }
+}
+
+function attachAutoGrowOnInput(fieldEl) {
+  fieldEl.addEventListener('input', () => {
+    autoGrow(fieldEl.closest('.note'));
+  });
 }
 
 async function saveNote(note, fields) {
@@ -194,6 +215,7 @@ function createNoteEl(note) {
   heading.contentEditable = 'false';
   heading.textContent = note.heading || '';
   heading.style.fontFamily = note.font || 'Segoe UI';
+  attachAutoGrowOnInput(heading);
 
   const bodyWrap = document.createElement('div');
   bodyWrap.className = 'note-body';
@@ -243,6 +265,7 @@ function buildTextBody(note, bodyWrap, headingEl) {
   text.textContent = note.text || '';
   text.style.fontFamily = note.font || 'Segoe UI';
   text.style.fontWeight = note.bold ? '700' : '400';
+  attachAutoGrowOnInput(text);
 
   text.addEventListener('dblclick', (e) => {
     e.stopPropagation();
@@ -348,6 +371,7 @@ function rebuildListRows(listEl, note, type, focusIndex) {
     span.textContent = type === 'todo' ? item.text || '' : item || '';
     span.style.fontFamily = note.font || 'Segoe UI';
     span.style.fontWeight = note.bold ? '700' : '400';
+    attachAutoGrowOnInput(span);
 
     let suppressBlur = false;
 
@@ -401,6 +425,8 @@ function rebuildListRows(listEl, note, type, focusIndex) {
       }, 0);
     }
   });
+
+  autoGrow(listEl.closest('.note'));
 }
 
 function addListItem(note, listEl, type) {

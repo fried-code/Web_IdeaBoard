@@ -169,7 +169,7 @@ body {
 
 .note-body {
   flex: 1 1 auto;
-  overflow: auto;
+  overflow: visible;
 }
 
 .note-text {
