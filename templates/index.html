@@ -18,19 +18,22 @@
     <button id="save-btn" class="save-btn" title="Save this page's ideas as a .txt file">💾 Save as .txt</button>
   </header>
 
-  <p class="hint-line">Right-click anywhere on the board to add an idea. Double-click a note to edit it. Right-click a note for more options.</p>
+  <p class="hint-line">Right-click the board to add a paper. Double-click any part of a note to edit it. Right-click a note for more options. Drag a note's bottom-right corner to resize it. Right-click a page tab to rename or delete it.</p>
 
   <main id="board" class="board"></main>
 
   <!-- context menu for empty board area -->
   <div id="board-menu" class="context-menu hidden">
-    <button data-action="add-note">➕ Add idea here</button>
+    <button data-action="add" data-type="note">🗒️ Sticky note</button>
+    <button data-action="add" data-type="bullets">📝 Bullet list</button>
+    <button data-action="add" data-type="todo">✅ To-do list</button>
+    <button data-action="add" data-type="image">🖼️ Image note</button>
   </div>
 
   <!-- context menu for a note -->
   <div id="note-menu" class="context-menu hidden">
     <button data-action="edit-heading">✏️ Edit heading</button>
-    <button data-action="edit-text">✏️ Edit note</button>
+    <button data-action="edit-text">✏️ Edit content</button>
     <button data-action="bold">𝐁 Toggle bold</button>
     <div class="menu-section-label">Font</div>
     <button data-action="font" data-font="Segoe UI">Segoe UI</button>
@@ -45,6 +48,14 @@
     <div class="menu-divider"></div>
     <button data-action="delete" class="danger">🗑️ Delete</button>
   </div>
+
+  <!-- context menu for a page tab -->
+  <div id="tab-menu" class="context-menu hidden">
+    <button data-action="rename">✏️ Rename page</button>
+    <button data-action="delete" class="danger">🗑️ Delete page</button>
+  </div>
+
+  <input type="file" id="image-input" accept="image/*" style="display:none" />
 
   <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>

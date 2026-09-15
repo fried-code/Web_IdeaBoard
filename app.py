@@ -1,3 +1,4 @@
+import json
 import os
 import random
 import sqlite3
@@ -15,6 +16,20 @@ COLORS = [
     "#ce93d8",  # purple
     "#fff9c4",  # pale yellow
 ]
+
+DEFAULT_SIZE = {
+    "note": (190, 170),
+    "bullets": (210, 210),
+    "todo": (210, 210),
+    "image": (230, 250),
+}
+
+DEFAULT_ITEMS = {
+    "note": [],
+    "bullets": [""],
+    "todo": [{"text": "", "done": False}],
+    "image": [],
+}
 
 app = Flask(__name__)
 
@@ -48,12 +63,15 @@ def init_db():
     ).fetchone()["id"]
 
     conn.execute(
-        """
+        f"""
         CREATE TABLE IF NOT EXISTS notes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             board_id INTEGER NOT NULL DEFAULT {default_board_id},
+            type TEXT NOT NULL DEFAULT 'note',
             heading TEXT NOT NULL DEFAULT '',
             text TEXT NOT NULL DEFAULT '',
+            items TEXT NOT NULL DEFAULT '[]',
+            image TEXT,
             color TEXT NOT NULL,
             x INTEGER NOT NULL,
             y INTEGER NOT NULL,
@@ -61,14 +79,16 @@ def init_db():
             z_index INTEGER NOT NULL DEFAULT 1,
             font TEXT NOT NULL DEFAULT 'Segoe UI',
             bold INTEGER NOT NULL DEFAULT 0,
+            width INTEGER NOT NULL DEFAULT 190,
+            height INTEGER NOT NULL DEFAULT 170,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (board_id) REFERENCES boards (id)
         )
-        """.format(default_board_id=default_board_id)
+        """
     )
 
-    # Migrate a pre-existing notes table (from an earlier version of this app)
-    # that predates boards / layering / fonts, without losing existing notes.
+    # Migrate a pre-existing notes table from an earlier version of this app,
+    # without losing existing notes.
     existing_cols = {r["name"] for r in conn.execute("PRAGMA table_info(notes)").fetchall()}
     migrations = []
     if "board_id" not in existing_cols:
@@ -83,6 +103,16 @@ def init_db():
         migrations.append("ALTER TABLE notes ADD COLUMN bold INTEGER NOT NULL DEFAULT 0")
     if "heading" not in existing_cols:
         migrations.append("ALTER TABLE notes ADD COLUMN heading TEXT NOT NULL DEFAULT ''")
+    if "type" not in existing_cols:
+        migrations.append("ALTER TABLE notes ADD COLUMN type TEXT NOT NULL DEFAULT 'note'")
+    if "items" not in existing_cols:
+        migrations.append("ALTER TABLE notes ADD COLUMN items TEXT NOT NULL DEFAULT '[]'")
+    if "image" not in existing_cols:
+        migrations.append("ALTER TABLE notes ADD COLUMN image TEXT")
+    if "width" not in existing_cols:
+        migrations.append("ALTER TABLE notes ADD COLUMN width INTEGER NOT NULL DEFAULT 190")
+    if "height" not in existing_cols:
+        migrations.append("ALTER TABLE notes ADD COLUMN height INTEGER NOT NULL DEFAULT 170")
     for m in migrations:
         conn.execute(m)
 
@@ -91,6 +121,15 @@ def init_db():
 
 
 init_db()
+
+
+def note_row_to_dict(row):
+    d = dict(row)
+    try:
+        d["items"] = json.loads(d.get("items") or "[]")
+    except (TypeError, ValueError):
+        d["items"] = []
+    return d
 
 
 @app.route("/")
@@ -132,6 +171,10 @@ def create_board():
 @app.route("/api/boards/<int:board_id>", methods=["DELETE"])
 def delete_board(board_id):
     conn = get_conn()
+    count = conn.execute("SELECT COUNT(*) AS c FROM boards").fetchone()["c"]
+    if count <= 1:
+        conn.close()
+        return jsonify({"error": "cannot delete the only page"}), 400
     conn.execute("DELETE FROM notes WHERE board_id = ?", (board_id,))
     conn.execute("DELETE FROM boards WHERE id = ?", (board_id,))
     conn.commit()
@@ -161,7 +204,7 @@ def export_board(board_id):
         return jsonify({"error": "board not found"}), 404
 
     rows = conn.execute(
-        "SELECT heading, text FROM notes WHERE board_id = ? ORDER BY z_index, id",
+        "SELECT heading, text, type, items FROM notes WHERE board_id = ? ORDER BY z_index, id",
         (board_id,),
     ).fetchall()
     conn.close()
@@ -169,13 +212,37 @@ def export_board(board_id):
     lines = [board["name"], "=" * len(board["name"]), ""]
     if not rows:
         lines.append("(no ideas on this page yet)")
+
     for i, row in enumerate(rows, start=1):
         heading = (row["heading"] or "").strip() or f"Idea {i}"
         lines.append(f"{i}. {heading}")
-        body = (row["text"] or "").strip()
-        if body:
-            indented = "\n".join("   " + line for line in body.splitlines())
-            lines.append(indented)
+        note_type = row["type"] or "note"
+
+        if note_type == "note":
+            body = (row["text"] or "").strip()
+            if body:
+                lines.append("\n".join("   " + line for line in body.splitlines()))
+        elif note_type == "bullets":
+            try:
+                items = json.loads(row["items"] or "[]")
+            except (TypeError, ValueError):
+                items = []
+            for item in items:
+                if str(item).strip():
+                    lines.append(f"   - {item}")
+        elif note_type == "todo":
+            try:
+                items = json.loads(row["items"] or "[]")
+            except (TypeError, ValueError):
+                items = []
+            for item in items:
+                text = (item.get("text") or "").strip() if isinstance(item, dict) else ""
+                if text:
+                    box = "[x]" if isinstance(item, dict) and item.get("done") else "[ ]"
+                    lines.append(f"   {box} {text}")
+        elif note_type == "image":
+            lines.append("   [image attached]")
+
         lines.append("")
 
     content = "\n".join(lines).rstrip() + "\n"
@@ -196,32 +263,57 @@ def export_board(board_id):
 def list_notes(board_id):
     conn = get_conn()
     rows = conn.execute(
-        "SELECT id, board_id, heading, text, color, x, y, rotation, z_index, font, bold "
+        "SELECT id, board_id, type, heading, text, items, image, color, x, y, "
+        "rotation, z_index, font, bold, width, height "
         "FROM notes WHERE board_id = ? ORDER BY z_index, id",
         (board_id,),
     ).fetchall()
     conn.close()
-    return jsonify([dict(r) for r in rows])
+    return jsonify([note_row_to_dict(r) for r in rows])
 
 
 @app.route("/api/boards/<int:board_id>/notes", methods=["POST"])
 def create_note(board_id):
     data = request.get_json(force=True) or {}
+    note_type = data.get("type") or "note"
+    if note_type not in DEFAULT_SIZE:
+        note_type = "note"
+
     heading = data.get("heading", "")
     text = data.get("text", "")
+    items = data.get("items", DEFAULT_ITEMS[note_type])
+    image = data.get("image")
     color = data.get("color") or random.choice(COLORS)
     x = data.get("x", random.randint(20, 640))
     y = data.get("y", random.randint(20, 360))
     rotation = data.get("rotation", random.randint(-6, 6))
+    default_w, default_h = DEFAULT_SIZE[note_type]
+    width = data.get("width", default_w)
+    height = data.get("height", default_h)
 
     conn = get_conn()
     max_z = conn.execute(
         "SELECT COALESCE(MAX(z_index), 0) AS m FROM notes WHERE board_id = ?", (board_id,)
     ).fetchone()["m"]
     cur = conn.execute(
-        "INSERT INTO notes (board_id, heading, text, color, x, y, rotation, z_index) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (board_id, heading, text, color, x, y, rotation, max_z + 1),
+        "INSERT INTO notes (board_id, type, heading, text, items, image, color, x, y, "
+        "rotation, z_index, width, height) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            board_id,
+            note_type,
+            heading,
+            text,
+            json.dumps(items),
+            image,
+            color,
+            x,
+            y,
+            rotation,
+            max_z + 1,
+            width,
+            height,
+        ),
     )
     conn.commit()
     note_id = cur.lastrowid
@@ -231,8 +323,11 @@ def create_note(board_id):
         {
             "id": note_id,
             "board_id": board_id,
+            "type": note_type,
             "heading": heading,
             "text": text,
+            "items": items,
+            "image": image,
             "color": color,
             "x": x,
             "y": y,
@@ -240,20 +335,39 @@ def create_note(board_id):
             "z_index": max_z + 1,
             "font": "Segoe UI",
             "bold": 0,
+            "width": width,
+            "height": height,
         }
     ), 201
 
 
 @app.route("/api/notes/<int:note_id>", methods=["PUT"])
 def update_note(note_id):
-    """Partial update: any subset of heading/text/x/y/rotation/z_index/font/bold/color."""
+    """Partial update of a note's fields."""
     data = request.get_json(force=True) or {}
     fields = []
     values = []
-    for key in ("heading", "text", "x", "y", "rotation", "z_index", "font", "bold", "color"):
+    for key in (
+        "heading",
+        "text",
+        "x",
+        "y",
+        "rotation",
+        "z_index",
+        "font",
+        "bold",
+        "color",
+        "width",
+        "height",
+        "image",
+    ):
         if key in data:
             fields.append(f"{key} = ?")
             values.append(data[key])
+    if "items" in data:
+        fields.append("items = ?")
+        values.append(json.dumps(data["items"]))
+
     if not fields:
         return jsonify({"error": "no fields to update"}), 400
 
