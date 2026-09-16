@@ -13,6 +13,22 @@ let notes = [];
 let lastRightClickPos = { x: 0, y: 0 };
 let pendingImageNote = null;
 
+const socket = io();
+
+// Tags outgoing REST requests with this tab's socket id, so the server
+// can skip echoing a "live update" back to the very tab that caused it
+// (this tab already applied the change locally).
+function apiHeaders(extra = {}) {
+  const headers = Object.assign({ 'Content-Type': 'application/json' }, extra);
+  if (socket.id) headers['X-Client-Id'] = socket.id;
+  return headers;
+}
+
+function isEditingWithin(el) {
+  const active = document.activeElement;
+  return !!(el && active && el.contains(active));
+}
+
 const FONT_OPTIONS = [
   ['Segoe UI', 'Segoe UI'],
   ["'Patrick Hand', cursive", 'Patrick Hand'],
@@ -51,7 +67,9 @@ function renderTabs() {
 }
 
 async function switchBoard(boardId) {
+  if (currentBoardId !== null) socket.emit('leave_board', { board_id: currentBoardId });
   currentBoardId = boardId;
+  socket.emit('join_board', { board_id: boardId });
   renderTabs();
   await loadNotes();
 }
@@ -61,7 +79,7 @@ async function renameBoard(boardId, oldName) {
   if (!name || !name.trim() || name.trim() === oldName) return;
   await fetch(`/api/boards/${boardId}/rename`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: apiHeaders(),
     body: JSON.stringify({ name: name.trim() }),
   });
   await loadBoards();
@@ -73,7 +91,7 @@ async function deleteBoardPrompt(boardId, name) {
     return;
   }
   if (!confirm(`Delete the page "${name}" and all its notes? This can't be undone.`)) return;
-  const res = await fetch(`/api/boards/${boardId}`, { method: 'DELETE' });
+  const res = await fetch(`/api/boards/${boardId}`, { method: 'DELETE', headers: apiHeaders() });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     alert(data.error || 'Could not delete this page.');
@@ -89,7 +107,7 @@ addTabBtn.addEventListener('click', async () => {
   if (!name || !name.trim()) return;
   const res = await fetch('/api/boards', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: apiHeaders(),
     body: JSON.stringify({ name: name.trim() }),
   });
   const newBoard = await res.json();
@@ -176,13 +194,13 @@ async function saveNote(note, fields) {
   Object.assign(note, fields);
   await fetch(`/api/notes/${note.id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: apiHeaders(),
     body: JSON.stringify(fields),
   });
 }
 
 async function deleteNote(id) {
-  await fetch(`/api/notes/${id}`, { method: 'DELETE' });
+  await fetch(`/api/notes/${id}`, { method: 'DELETE', headers: apiHeaders() });
   notes = notes.filter((n) => n.id !== id);
   renderBoard();
 }
@@ -542,7 +560,7 @@ function attachResizeObserver(el, note) {
 async function addNoteAt(x, y, type) {
   const res = await fetch(`/api/boards/${currentBoardId}/notes`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: apiHeaders(),
     body: JSON.stringify({ type, heading: '', x: Math.round(x), y: Math.round(y) }),
   });
   const note = await res.json();
@@ -672,12 +690,12 @@ noteMenu.addEventListener('click', async (e) => {
     await saveNote(note, { font });
     renderBoard();
   } else if (action === 'front') {
-    const res = await fetch(`/api/notes/${note.id}/front`, { method: 'PUT' });
+    const res = await fetch(`/api/notes/${note.id}/front`, { method: 'PUT', headers: apiHeaders() });
     const data = await res.json();
     note.z_index = data.z_index;
     renderBoard();
   } else if (action === 'back') {
-    const res = await fetch(`/api/notes/${note.id}/back`, { method: 'PUT' });
+    const res = await fetch(`/api/notes/${note.id}/back`, { method: 'PUT', headers: apiHeaders() });
     const data = await res.json();
     note.z_index = data.z_index;
     renderBoard();
@@ -695,9 +713,144 @@ document.addEventListener('click', (e) => {
 });
 document.addEventListener('scroll', closeMenus, true);
 
+// ---------- Live sync across devices ----------
+
+function upsertNoteInMemory(note) {
+  const idx = notes.findIndex((n) => n.id === note.id);
+  if (idx >= 0) notes[idx] = note;
+  else notes.push(note);
+}
+
+// Re-render just one note in place, unless the person has their cursor in
+// it right now — in which case we leave their typing alone. The in-memory
+// data is still updated either way, so it's correct next time it renders.
+function reconcileNoteEl(note) {
+  const existingEl = board.querySelector(`.note[data-id="${note.id}"]`);
+  if (existingEl && isEditingWithin(existingEl)) return;
+
+  if (notes.length === 1 && !existingEl) {
+    // Board was showing the empty-state hint; do a normal full render.
+    renderBoard();
+    return;
+  }
+  const freshEl = createNoteEl(note);
+  if (existingEl) existingEl.replaceWith(freshEl);
+  else board.appendChild(freshEl);
+  autoGrow(freshEl);
+}
+
+socket.on('connect', () => {
+  if (currentBoardId !== null) socket.emit('join_board', { board_id: currentBoardId });
+});
+
+socket.on('board_created', (b) => {
+  if (!boards.some((x) => x.id === b.id)) boards.push(b);
+  renderTabs();
+});
+
+socket.on('board_renamed', (b) => {
+  const existing = boards.find((x) => x.id === b.id);
+  if (existing) existing.name = b.name;
+  renderTabs();
+});
+
+socket.on('board_deleted', ({ id }) => {
+  boards = boards.filter((x) => x.id !== id);
+  renderTabs();
+  if (id === currentBoardId) {
+    currentBoardId = boards.length ? boards[0].id : null;
+    renderTabs();
+    loadNotes();
+  }
+});
+
+socket.on('note_created', (note) => {
+  if (note.board_id !== currentBoardId) return;
+  if (notes.some((n) => n.id === note.id)) return;
+  upsertNoteInMemory(note);
+  reconcileNoteEl(note);
+});
+
+socket.on('note_updated', (note) => {
+  if (note.board_id !== currentBoardId) return;
+  upsertNoteInMemory(note);
+  reconcileNoteEl(note);
+});
+
+socket.on('note_deleted', ({ id, board_id }) => {
+  if (board_id !== currentBoardId) return;
+  notes = notes.filter((n) => n.id !== id);
+  const existingEl = board.querySelector(`.note[data-id="${id}"]`);
+  if (existingEl && !isEditingWithin(existingEl)) existingEl.remove();
+  if (notes.length === 0) renderBoard();
+});
+
+socket.on('data_imported', () => {
+  currentBoardId = null;
+  loadBoards().then(() => {
+    if (currentBoardId !== null) socket.emit('join_board', { board_id: currentBoardId });
+    loadNotes();
+  });
+});
+
+// ---------- Full backup / restore ----------
+
+const backupBtn = document.getElementById('backup-btn');
+const restoreBtn = document.getElementById('restore-btn');
+const restoreInput = document.getElementById('restore-input');
+
+backupBtn.addEventListener('click', () => {
+  window.location.href = '/api/export-all';
+});
+
+restoreBtn.addEventListener('click', () => {
+  restoreInput.click();
+});
+
+restoreInput.addEventListener('change', async () => {
+  const file = restoreInput.files && restoreInput.files[0];
+  restoreInput.value = '';
+  if (!file) return;
+
+  if (
+    !confirm(
+      `This will REPLACE all current pages and notes with the contents of "${file.name}". This can't be undone. Continue?`
+    )
+  ) {
+    return;
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(await file.text());
+  } catch (err) {
+    alert("That file isn't valid JSON.");
+    return;
+  }
+
+  const res = await fetch('/api/import-all', {
+    method: 'POST',
+    headers: apiHeaders(),
+    body: JSON.stringify(parsed),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    alert(err.error || 'Could not restore that backup.');
+    return;
+  }
+
+  currentBoardId = null;
+  await loadBoards();
+  if (currentBoardId !== null) socket.emit('join_board', { board_id: currentBoardId });
+  await loadNotes();
+  alert('Backup restored.');
+});
+
 // ---------- Init ----------
 
 (async function init() {
   await loadBoards();
+  if (currentBoardId !== null) socket.emit('join_board', { board_id: currentBoardId });
   await loadNotes();
 })();

@@ -16,9 +16,11 @@
       <button id="add-tab" class="tab add-tab" title="New page">+</button>
     </div>
     <button id="save-btn" class="save-btn" title="Save this page's ideas as a .txt file">💾 Save as .txt</button>
+    <button id="backup-btn" class="backup-btn" title="Download everything (all pages) as a backup file">⬇️ Backup all</button>
+    <button id="restore-btn" class="restore-btn" title="Restore everything from a backup file">⬆️ Restore backup</button>
   </header>
 
-  <p class="hint-line">Right-click the board to add a paper. Double-click any part of a note to edit it. Right-click a note for more options. Drag a note's bottom-right corner to resize it. Right-click a page tab to rename or delete it.</p>
+  <p class="hint-line">Right-click the board to add a paper. Double-click any part of a note to edit it. Right-click a note for more options. Drag a note's bottom-right corner to resize it. Right-click a page tab to rename or delete it. Changes sync live to every open tab and device — use "Backup all" anytime to save a copy of everything.</p>
 
   <main id="board" class="board"></main>
 
@@ -56,7 +58,9 @@
   </div>
 
   <input type="file" id="image-input" accept="image/*" style="display:none" />
+  <input type="file" id="restore-input" accept="application/json,.json" style="display:none" />
 
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>

@@ -2,10 +2,13 @@ import json
 import os
 import random
 import sqlite3
+from datetime import datetime, timezone
 
 from flask import Flask, Response, jsonify, render_template, request
+from flask_socketio import SocketIO, join_room, leave_room
 
 DB_PATH = os.environ.get("DB_PATH", "board.db")
+BOARDS_ROOM = "boards"
 
 COLORS = [
     "#fff59d",  # yellow
@@ -32,6 +35,7 @@ DEFAULT_ITEMS = {
 }
 
 app = Flask(__name__)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 
 def get_conn():
@@ -132,9 +136,50 @@ def note_row_to_dict(row):
     return d
 
 
+def get_note_dict(conn, note_id):
+    row = conn.execute(
+        "SELECT id, board_id, type, heading, text, items, image, color, x, y, "
+        "rotation, z_index, font, bold, width, height FROM notes WHERE id = ?",
+        (note_id,),
+    ).fetchone()
+    return note_row_to_dict(row) if row else None
+
+
+def client_sid():
+    """The requesting browser tab's socket.io session id, if it sent one.
+
+    Used so a client doesn't get an echoed 'live update' for a change it
+    just made itself via the REST API (it already applied that change
+    locally). Every *other* tab/device in the room still gets it.
+    """
+    return request.headers.get("X-Client-Id") or None
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+# ---------- Realtime: socket connections ----------
+
+
+@socketio.on("connect")
+def handle_connect():
+    join_room(BOARDS_ROOM)
+
+
+@socketio.on("join_board")
+def handle_join_board(data):
+    board_id = (data or {}).get("board_id")
+    if board_id is not None:
+        join_room(f"board-{board_id}")
+
+
+@socketio.on("leave_board")
+def handle_leave_board(data):
+    board_id = (data or {}).get("board_id")
+    if board_id is not None:
+        leave_room(f"board-{board_id}")
 
 
 # ---------- Boards (pages) ----------
@@ -165,7 +210,10 @@ def create_board():
     conn.commit()
     board_id = cur.lastrowid
     conn.close()
-    return jsonify({"id": board_id, "name": name}), 201
+
+    payload = {"id": board_id, "name": name}
+    socketio.emit("board_created", payload, room=BOARDS_ROOM, skip_sid=client_sid())
+    return jsonify(payload), 201
 
 
 @app.route("/api/boards/<int:board_id>", methods=["DELETE"])
@@ -179,6 +227,8 @@ def delete_board(board_id):
     conn.execute("DELETE FROM boards WHERE id = ?", (board_id,))
     conn.commit()
     conn.close()
+
+    socketio.emit("board_deleted", {"id": board_id}, room=BOARDS_ROOM, skip_sid=client_sid())
     return jsonify({"ok": True})
 
 
@@ -192,6 +242,9 @@ def rename_board(board_id):
     conn.execute("UPDATE boards SET name = ? WHERE id = ?", (name, board_id))
     conn.commit()
     conn.close()
+
+    payload = {"id": board_id, "name": name}
+    socketio.emit("board_renamed", payload, room=BOARDS_ROOM, skip_sid=client_sid())
     return jsonify({"ok": True})
 
 
@@ -256,6 +309,97 @@ def export_board(board_id):
     )
 
 
+# ---------- Full backup / restore (all pages, all notes, exact fidelity) ----------
+
+
+@app.route("/api/export-all", methods=["GET"])
+def export_all():
+    conn = get_conn()
+    boards_rows = conn.execute(
+        "SELECT id, name, sort_order FROM boards ORDER BY sort_order, id"
+    ).fetchall()
+    notes_rows = conn.execute("SELECT * FROM notes ORDER BY id").fetchall()
+    conn.close()
+
+    data = {
+        "app": "idea-board-backup",
+        "version": 1,
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "boards": [dict(r) for r in boards_rows],
+        "notes": [note_row_to_dict(r) for r in notes_rows],
+    }
+    content = json.dumps(data, indent=2)
+    filename = f"idea-board-backup-{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.json"
+
+    return Response(
+        content,
+        mimetype="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.route("/api/import-all", methods=["POST"])
+def import_all():
+    data = request.get_json(force=True) or {}
+    boards_in = data.get("boards")
+    notes_in = data.get("notes")
+    if not isinstance(boards_in, list) or not isinstance(notes_in, list) or not boards_in:
+        return jsonify({"error": "That doesn't look like a valid idea-board backup file."}), 400
+
+    conn = get_conn()
+    try:
+        conn.execute("DELETE FROM notes")
+        conn.execute("DELETE FROM boards")
+
+        for b in boards_in:
+            conn.execute(
+                "INSERT INTO boards (id, name, sort_order) VALUES (?, ?, ?)",
+                (b.get("id"), str(b.get("name") or "Untitled")[:200], int(b.get("sort_order") or 0)),
+            )
+
+        for n in notes_in:
+            note_type = n.get("type") or "note"
+            if note_type not in DEFAULT_SIZE:
+                note_type = "note"
+            default_w, default_h = DEFAULT_SIZE[note_type]
+            conn.execute(
+                "INSERT INTO notes (id, board_id, type, heading, text, items, image, color, "
+                "x, y, rotation, z_index, font, bold, width, height) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    n.get("id"),
+                    n.get("board_id"),
+                    note_type,
+                    n.get("heading", "") or "",
+                    n.get("text", "") or "",
+                    json.dumps(n.get("items") or []),
+                    n.get("image"),
+                    n.get("color") or random.choice(COLORS),
+                    int(n.get("x") or 0),
+                    int(n.get("y") or 0),
+                    int(n.get("rotation") or 0),
+                    int(n.get("z_index") or 1),
+                    n.get("font") or "Segoe UI",
+                    1 if n.get("bold") else 0,
+                    int(n.get("width") or default_w),
+                    int(n.get("height") or default_h),
+                ),
+            )
+
+        if conn.execute("SELECT COUNT(*) AS c FROM boards").fetchone()["c"] == 0:
+            conn.execute("INSERT INTO boards (name, sort_order) VALUES (?, ?)", ("My Ideas", 0))
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        conn.close()
+        return jsonify({"error": "Could not restore that backup — it may be corrupted."}), 400
+
+    conn.close()
+    socketio.emit("data_imported", {}, room=BOARDS_ROOM, skip_sid=client_sid())
+    return jsonify({"ok": True})
+
+
 # ---------- Notes ----------
 
 
@@ -317,28 +461,13 @@ def create_note(board_id):
     )
     conn.commit()
     note_id = cur.lastrowid
+    note = get_note_dict(conn, note_id)
     conn.close()
 
-    return jsonify(
-        {
-            "id": note_id,
-            "board_id": board_id,
-            "type": note_type,
-            "heading": heading,
-            "text": text,
-            "items": items,
-            "image": image,
-            "color": color,
-            "x": x,
-            "y": y,
-            "rotation": rotation,
-            "z_index": max_z + 1,
-            "font": "Segoe UI",
-            "bold": 0,
-            "width": width,
-            "height": height,
-        }
-    ), 201
+    socketio.emit(
+        "note_created", note, room=f"board-{board_id}", skip_sid=client_sid()
+    )
+    return jsonify(note), 201
 
 
 @app.route("/api/notes/<int:note_id>", methods=["PUT"])
@@ -375,7 +504,13 @@ def update_note(note_id):
     conn = get_conn()
     conn.execute(f"UPDATE notes SET {', '.join(fields)} WHERE id = ?", values)
     conn.commit()
+    note = get_note_dict(conn, note_id)
     conn.close()
+
+    if note:
+        socketio.emit(
+            "note_updated", note, room=f"board-{note['board_id']}", skip_sid=client_sid()
+        )
     return jsonify({"ok": True})
 
 
@@ -393,7 +528,13 @@ def bring_to_front(note_id):
     new_z = max_z + 1
     conn.execute("UPDATE notes SET z_index = ? WHERE id = ?", (new_z, note_id))
     conn.commit()
+    updated = get_note_dict(conn, note_id)
     conn.close()
+
+    if updated:
+        socketio.emit(
+            "note_updated", updated, room=f"board-{updated['board_id']}", skip_sid=client_sid()
+        )
     return jsonify({"z_index": new_z})
 
 
@@ -411,19 +552,34 @@ def send_to_back(note_id):
     new_z = min_z - 1
     conn.execute("UPDATE notes SET z_index = ? WHERE id = ?", (new_z, note_id))
     conn.commit()
+    updated = get_note_dict(conn, note_id)
     conn.close()
+
+    if updated:
+        socketio.emit(
+            "note_updated", updated, room=f"board-{updated['board_id']}", skip_sid=client_sid()
+        )
     return jsonify({"z_index": new_z})
 
 
 @app.route("/api/notes/<int:note_id>", methods=["DELETE"])
 def delete_note(note_id):
     conn = get_conn()
+    note = conn.execute("SELECT board_id FROM notes WHERE id = ?", (note_id,)).fetchone()
     conn.execute("DELETE FROM notes WHERE id = ?", (note_id,))
     conn.commit()
     conn.close()
+
+    if note:
+        socketio.emit(
+            "note_deleted",
+            {"id": note_id, "board_id": note["board_id"]},
+            room=f"board-{note['board_id']}",
+            skip_sid=client_sid(),
+        )
     return jsonify({"ok": True})
 
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    socketio.run(app, host="0.0.0.0", port=port, debug=True)

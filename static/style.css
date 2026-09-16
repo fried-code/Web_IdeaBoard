@@ -92,6 +92,32 @@ body {
   background: #7fc08b;
 }
 
+.backup-btn,
+.restore-btn {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 6px;
+  background: #5a8fc0;
+  color: #0f1f2e;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.backup-btn:hover,
+.restore-btn:hover {
+  background: #6ea0d0;
+}
+
+.restore-btn {
+  background: #c08a5a;
+  color: #2e1f0f;
+}
+
+.restore-btn:hover {
+  background: #d09c6e;
+}
+
 .board {
   position: relative;
   width: 100%;
