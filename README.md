@@ -23,17 +23,25 @@ Then open http://localhost:5000
 2. On Render: **New +** → **Web Service** → connect your repo.
 3. Render will detect `Procfile` / you can set manually:
    - Build command: `pip install -r requirements.txt`
-   - Start command: `gunicorn --worker-class eventlet -w 1 app:app`
+   - Start command: `gunicorn --worker-class gthread --threads 50 -w 1 app:app`
 4. Deploy.
 
 Or, if you'd rather not click through the UI: this repo includes a
 `render.yaml`, so you can use Render's **Blueprint** deploy — point it at the
 repo and it configures the service (including a small persistent disk) for you.
 
-**Note on the start command:** live sync uses WebSockets (Flask-SocketIO),
-which need an async worker to hold many connections open at once. That's
-why the start command uses `--worker-class eventlet` instead of Render's
-plain `gunicorn app:app` default — don't drop that flag.
+**Note on the start command:** live sync uses WebSockets (Flask-SocketIO, in
+`threading` mode via the `simple-websocket` package), which need a worker
+that can hold many connections open at once. That's why the start command
+uses `--worker-class gthread --threads 50` instead of Render's plain
+`gunicorn app:app` default — don't drop that flag. (An earlier version of
+this used an `eventlet` worker instead; eventlet doesn't yet support newer
+Python versions' threading internals, so this app avoids it entirely.)
+
+A `runtime.txt` file pins the Python version Render builds with. This
+matters even if you don't use the Blueprint — without it, Render may pick
+whatever its current default Python is, which can be newer than some
+dependency supports.
 
 ### Important: persistence
 
