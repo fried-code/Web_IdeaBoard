@@ -32,39 +32,6 @@ A responsive, high-voltage **Neo-Brutalist Web Application** for organizing thou
 
 ---
 
-## 🚀 Getting Started
-
-### 1. Prerequisites
-- Python 3.10+ (or Python 3.13)
-- Neon PostgreSQL connection string
-
-### 2. Setup Environment
-
-Create a `.env` file in the project root:
-```env
-DATABASE_URL=postgresql://neondb_owner:npg_HNTlDv9du2kL@ep-young-bird-b4215ifi.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require
-SECRET_KEY=ideaboard_neon_brutalist_super_secret_jwt_2026
-PORT=5000
-```
-
-### 3. Install Dependencies & Run
-
-```bash
-# Activate virtual environment
-venv\Scripts\activate   # On Windows
-# or: source venv/bin/activate  # On macOS/Linux
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Start the application
-python app.py
-```
-
-Open your browser and navigate to: **http://localhost:5000**
-
----
-
 ## 📁 Project Structure
 
 ```
