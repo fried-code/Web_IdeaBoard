@@ -2,64 +2,268 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Idea Board</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>IdeaBoard // Neo-Brutalist Workspace</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@700&family=Kalam:wght@700&family=Patrick+Hand&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700;800&family=Caveat:wght@700&family=Courier+Prime:wght@700&family=Kalam:wght@700&family=Patrick+Hand&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
-<body>
+<body class="mode-canvas">
+  <!-- Top Navigation Bar -->
   <header class="topbar">
-    <h1>💡 Idea Board</h1>
-    <div id="tabs" class="tabs">
-      <!-- page tabs injected here -->
-      <button id="add-tab" class="tab add-tab" title="New page">+</button>
+    <div class="brand-group">
+      <div class="brand-logo" title="Neo-Brutalist IdeaBoard">
+        <span class="logo-emoji">⚡</span>
+        <span class="logo-text">IDEA<span class="logo-slash">//</span>BOARD</span>
+      </div>
+      <div class="db-pill" title="Connected to Neon Serverless PostgreSQL">
+        <span class="db-dot"></span>
+        <span class="db-name">NEON DB</span>
+      </div>
     </div>
-    <button id="save-btn" class="save-btn" title="Save this page's ideas as a .txt file">💾 Save as .txt</button>
-    <button id="backup-btn" class="backup-btn" title="Download everything (all pages) as a backup file">⬇️ Backup all</button>
-    <button id="restore-btn" class="restore-btn" title="Restore everything from a backup file">⬆️ Restore backup</button>
+
+    <!-- Board Tabs Strip -->
+    <div class="tabs-scroll-container">
+      <div id="tabs" class="tabs">
+        <!-- page tabs injected here dynamically -->
+        <button id="add-tab" class="tab-btn add-tab-btn" title="Create new board page">+ NEW PAGE</button>
+      </div>
+    </div>
+
+    <!-- Top Right Action Controls -->
+    <div class="top-actions">
+      <!-- Add List Button -->
+      <button id="add-list-btn" class="neo-btn action-btn list-btn" title="Create a new Trello-like list column">
+        <span class="btn-icon">📋</span>
+        <span class="btn-text">+ List</span>
+      </button>
+
+      <!-- Layout view switcher (Canvas vs Responsive Grid) -->
+      <button id="view-toggle-btn" class="neo-btn action-btn view-toggle" title="Switch between Freeform Canvas and Grid View">
+        <span class="btn-icon">🗂️</span>
+        <span class="btn-text">Grid View</span>
+      </button>
+
+      <button id="save-btn" class="neo-btn action-btn export-btn" title="Download ideas on this page as text">
+        <span class="btn-icon">💾</span>
+        <span class="btn-text">Export</span>
+      </button>
+
+      <div class="dropdown-wrap">
+        <button id="more-actions-btn" class="neo-btn action-btn menu-toggle-btn" title="More options">
+          <span class="btn-icon">⚙️</span>
+          <span class="btn-text">Data</span>
+        </button>
+        <div id="data-dropdown" class="neo-dropdown hidden">
+          <button id="backup-btn" class="dropdown-item">⬇️ Backup Everything (JSON)</button>
+          <button id="restore-btn" class="dropdown-item">⬆️ Restore from Backup</button>
+        </div>
+      </div>
+
+      <!-- Auth User Badge / Login Trigger -->
+      <div id="auth-controls" class="auth-controls">
+        <button id="open-auth-btn" class="neo-btn auth-cta-btn">
+          <span class="btn-icon">🔑</span>
+          <span class="btn-text">Sign In / Sign Up</span>
+        </button>
+        <div id="user-badge" class="user-badge hidden">
+          <span class="user-avatar">👾</span>
+          <span id="user-name" class="user-name">User</span>
+          <button id="logout-btn" class="neo-btn logout-btn" title="Sign out of account">🚪</button>
+        </div>
+      </div>
+
+      <!-- Mobile drawer toggle button -->
+      <button id="mobile-drawer-btn" class="neo-btn mobile-only-btn" title="Open Menu" aria-label="Menu">
+        ☰
+      </button>
+    </div>
   </header>
 
-  <p class="hint-line">Right-click the board to add a paper. Double-click any part of a note to edit it. Right-click a note for more options. Drag a note's bottom-right corner to resize it. Right-click a page tab to rename or delete it. Changes sync live to every open tab and device — use "Backup all" anytime to save a copy of everything.</p>
-
-  <main id="board" class="board"></main>
-
-  <!-- context menu for empty board area -->
-  <div id="board-menu" class="context-menu hidden">
-    <button data-action="add" data-type="note">🗒️ Sticky note</button>
-    <button data-action="add" data-type="bullets">📝 Bullet list</button>
-    <button data-action="add" data-type="todo">✅ To-do list</button>
-    <button data-action="add" data-type="image">🖼️ Image note</button>
+  <!-- Mobile Drawer Menu -->
+  <div id="mobile-drawer" class="mobile-drawer hidden">
+    <div class="mobile-drawer-content">
+      <div class="drawer-header">
+        <h3>⚡ IDEA//BOARD MENU</h3>
+        <button id="close-drawer-btn" class="neo-btn close-btn">✕</button>
+      </div>
+      <div class="drawer-section">
+        <div class="drawer-user-info" id="drawer-user-info">
+          <!-- Injected via JS -->
+        </div>
+      </div>
+      <div class="drawer-links">
+        <button id="drawer-view-toggle" class="neo-btn drawer-btn">🗂️ Toggle Canvas / Grid View</button>
+        <button id="drawer-add-list" class="neo-btn drawer-btn">📋 Create New List Column</button>
+        <button id="drawer-add-board" class="neo-btn drawer-btn">➕ Create New Board Page</button>
+        <button id="drawer-export" class="neo-btn drawer-btn">💾 Export Current Board (.txt)</button>
+        <button id="drawer-backup" class="neo-btn drawer-btn">⬇️ Download Backup File</button>
+        <button id="drawer-restore" class="neo-btn drawer-btn">⬆️ Restore from Backup</button>
+        <button id="drawer-auth-btn" class="neo-btn drawer-btn auth-action">🔑 Account / Sign In</button>
+      </div>
+    </div>
   </div>
 
-  <!-- context menu for a note -->
-  <div id="note-menu" class="context-menu hidden">
-    <button data-action="edit-heading">✏️ Edit heading</button>
-    <button data-action="edit-text">✏️ Edit content</button>
-    <button data-action="bold">𝐁 Toggle bold</button>
-    <div class="menu-section-label">Font</div>
-    <button data-action="font" data-font="Segoe UI">Segoe UI</button>
-    <button data-action="font" data-font="'Patrick Hand', cursive">Patrick Hand</button>
-    <button data-action="font" data-font="'Caveat', cursive">Caveat</button>
-    <button data-action="font" data-font="'Kalam', cursive">Kalam</button>
-    <button data-action="font" data-font="Georgia, serif">Georgia</button>
-    <button data-action="font" data-font="'Courier New', monospace">Courier New</button>
-    <div class="menu-divider"></div>
-    <button data-action="front">⬆️ Bring to front</button>
-    <button data-action="back">⬇️ Send to back</button>
-    <div class="menu-divider"></div>
-    <button data-action="delete" class="danger">🗑️ Delete</button>
+  <!-- Notification Banner / Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Main Idea Canvas / Grid Area -->
+  <main id="board-viewport" class="board-viewport">
+    <div id="board" class="board"></div>
+    <!-- Ghost List Preview for when cards overlap -->
+    <div id="ghost-list-preview" class="ghost-list-preview hidden">
+      <div class="ghost-list-header">
+        <span class="ghost-list-tag">📋 LIST PREVIEW</span>
+        <span class="ghost-badge">✨ RELEASE TO GROUP INTO LIST</span>
+      </div>
+      <div class="ghost-cards-stack">
+        <div class="ghost-card-slot" id="ghost-slot-base">Base Card</div>
+        <div class="ghost-card-slot" id="ghost-slot-dropped">+ Dropped Card</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Floating Action Button (FAB) for Easy Mobile & Desktop Idea Creation -->
+  <div id="fab-container" class="fab-container">
+    <button id="fab-main-btn" class="neo-fab-btn" title="Add New Idea" aria-label="Add Idea">
+      <span class="fab-plus">+</span>
+    </button>
+    <div id="fab-menu" class="fab-menu hidden">
+      <button class="fab-item-btn" data-type="new-list" title="New List Column">
+        <span class="fab-icon">📋</span>
+        <span class="fab-label">List</span>
+      </button>
+      <button class="fab-item-btn" data-type="note" title="Sticky Note">
+        <span class="fab-icon">🗒️</span>
+        <span class="fab-label">Note</span>
+      </button>
+      <button class="fab-item-btn" data-type="todo" title="Checklist / To-Do">
+        <span class="fab-icon">✅</span>
+        <span class="fab-label">To-Do</span>
+      </button>
+      <button class="fab-item-btn" data-type="bullets" title="Bullet Points">
+        <span class="fab-icon">📝</span>
+        <span class="fab-label">Bullets</span>
+      </button>
+      <button class="fab-item-btn" data-type="image" title="Image / Photo Note">
+        <span class="fab-icon">🖼️</span>
+        <span class="fab-label">Photo</span>
+      </button>
+    </div>
   </div>
 
-  <!-- context menu for a page tab -->
-  <div id="tab-menu" class="context-menu hidden">
-    <button data-action="rename">✏️ Rename page</button>
-    <button data-action="delete" class="danger">🗑️ Delete page</button>
+  <!-- Neo-Brutalist Authentication Modal -->
+  <div id="auth-modal" class="neo-modal-backdrop hidden">
+    <div class="neo-modal auth-modal-card">
+      <button id="auth-modal-close" class="modal-close-btn" title="Close">✕</button>
+      <div class="modal-header">
+        <div class="auth-tabs">
+          <button id="tab-login" class="auth-tab-btn active">LOG IN</button>
+          <button id="tab-signup" class="auth-tab-btn">CREATE ACCOUNT</button>
+        </div>
+      </div>
+
+      <div class="modal-body">
+        <div id="auth-error" class="neo-alert hidden"></div>
+
+        <!-- Login Form -->
+        <form id="login-form" class="auth-form">
+          <div class="form-group">
+            <label for="login-identifier">USERNAME OR EMAIL</label>
+            <input type="text" id="login-identifier" class="neo-input" placeholder="e.g. brutalist_coder" required autocomplete="username" />
+          </div>
+          <div class="form-group">
+            <label for="login-password">PASSWORD</label>
+            <input type="password" id="login-password" class="neo-input" placeholder="••••••••" required autocomplete="current-password" />
+          </div>
+          <button type="submit" class="neo-btn submit-auth-btn">
+            <span>ENTER WORKSPACE ➔</span>
+          </button>
+        </form>
+
+        <!-- Sign Up Form -->
+        <form id="signup-form" class="auth-form hidden">
+          <div class="form-group">
+            <label for="signup-username">CHOOSE USERNAME</label>
+            <input type="text" id="signup-username" class="neo-input" placeholder="e.g. neon_ninja" minlength="3" required autocomplete="username" />
+          </div>
+          <div class="form-group">
+            <label for="signup-email">EMAIL ADDRESS</label>
+            <input type="email" id="signup-email" class="neo-input" placeholder="ninja@example.com" required autocomplete="email" />
+          </div>
+          <div class="form-group">
+            <label for="signup-password">PASSWORD (MIN 6 CHARACTERS)</label>
+            <input type="password" id="signup-password" class="neo-input" placeholder="••••••••" minlength="6" required autocomplete="new-password" />
+          </div>
+          <button type="submit" class="neo-btn submit-auth-btn signup-btn">
+            <span>CREATE ACCOUNT & SAVE IDEAS ➔</span>
+          </button>
+        </form>
+
+        <div class="auth-footer-badge">
+          <span>🔒 All ideas, to-dos and images are saved in Neon Cloud PostgreSQL</span>
+        </div>
+      </div>
+    </div>
   </div>
 
+  <!-- Note Actions Touch / Context Modal / Menu -->
+  <div id="note-modal" class="neo-modal-backdrop hidden">
+    <div class="neo-modal note-options-card">
+      <div class="modal-title-bar">
+        <span>⚡ NOTE OPTIONS</span>
+        <button id="note-modal-close" class="modal-close-btn">✕</button>
+      </div>
+      <div class="options-section">
+        <label class="section-label">CARD COLOR</label>
+        <div class="color-picker-grid" id="note-color-picker">
+          <button class="color-chip" data-color="#FFE600" style="background: #FFE600;" title="Neo Yellow"></button>
+          <button class="color-chip" data-color="#FF66C4" style="background: #FF66C4;" title="Bubblegum Pink"></button>
+          <button class="color-chip" data-color="#23F0C7" style="background: #23F0C7;" title="Acid Mint"></button>
+          <button class="color-chip" data-color="#38BDF8" style="background: #38BDF8;" title="Electric Cyan"></button>
+          <button class="color-chip" data-color="#FF8C42" style="background: #FF8C42;" title="Tangerine Orange"></button>
+          <button class="color-chip" data-color="#C084FC" style="background: #C084FC;" title="Hyper Lavender"></button>
+          <button class="color-chip" data-color="#A3E635" style="background: #A3E635;" title="Neon Lime"></button>
+          <button class="color-chip" data-color="#FFFFFF" style="background: #FFFFFF;" title="Clean White"></button>
+        </div>
+      </div>
+
+      <div class="options-section">
+        <label class="section-label">TYPOGRAPHY</label>
+        <div class="font-picker-grid" id="note-font-picker">
+          <button class="neo-btn font-btn" data-font="Space Grotesk">Space Grotesk</button>
+          <button class="neo-btn font-btn" data-font="'Patrick Hand', cursive">Patrick Hand</button>
+          <button class="neo-btn font-btn" data-font="'Caveat', cursive">Caveat</button>
+          <button class="neo-btn font-btn" data-font="'Kalam', cursive">Kalam</button>
+          <button class="neo-btn font-btn" data-font="'Courier Prime', monospace">Courier</button>
+        </div>
+      </div>
+
+      <div class="options-section button-grid">
+        <button id="opt-toggle-bold" class="neo-btn action-chip">𝐁 Toggle Bold</button>
+        <button id="opt-bring-front" class="neo-btn action-chip">⬆️ Bring to Front</button>
+        <button id="opt-send-back" class="neo-btn action-chip">⬇️ Send to Back</button>
+        <button id="opt-delete-note" class="neo-btn action-chip danger">🗑️ Delete Idea</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Context Menu for Board Right-Click (Desktop) -->
+  <div id="board-menu" class="context-menu neo-card hidden">
+    <div class="menu-heading">⚡ ADD TO BOARD</div>
+    <button data-action="add" data-type="note">🗒️ Sticky Note</button>
+    <button data-action="add" data-type="todo">✅ Checklist To-Do</button>
+    <button data-action="add" data-type="bullets">📝 Bullet Points</button>
+    <button data-action="add" data-type="image">🖼️ Photo / Image</button>
+    <button data-action="add-list">📋 New List Column</button>
+  </div>
+
+  <!-- Hidden Inputs for Files & Restore -->
   <input type="file" id="image-input" accept="image/*" style="display:none" />
   <input type="file" id="restore-input" accept="application/json,.json" style="display:none" />
 
+  <!-- Socket.io and Application Script -->
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
