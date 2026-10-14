@@ -8,13 +8,24 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-NEON_CONN_STR = os.environ.get(
-    "DATABASE_URL",
-    "postgresql://neondb_owner:npg_HNTlDv9du2kL@ep-young-bird-b4215ifi.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require"
-)
+NEON_CONN_STR = os.environ.get("DATABASE_URL", "").strip()
 
-# Neon HTTP SQL endpoint
-SQL_ENDPOINT = os.environ.get("NEON_SQL_ENDPOINT", "https://api.c-6.us-east-2.aws.neon.tech/sql")
+def _get_sql_endpoint():
+    custom = os.environ.get("NEON_SQL_ENDPOINT")
+    if custom:
+        return custom
+    if NEON_CONN_STR and "@" in NEON_CONN_STR:
+        try:
+            host_part = NEON_CONN_STR.split("@")[1].split("/")[0].split("?")[0]
+            parts = host_part.split(".")
+            if len(parts) >= 4 and "neon.tech" in host_part:
+                cluster_domain = ".".join(parts[1:])
+                return f"https://api.{cluster_domain}/sql"
+        except Exception:
+            pass
+    return "https://api.c-6.us-east-2.aws.neon.tech/sql"
+
+SQL_ENDPOINT = _get_sql_endpoint()
 
 _http_session = requests.Session()
 adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=20, max_retries=3)

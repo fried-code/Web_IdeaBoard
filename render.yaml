@@ -2,14 +2,13 @@ services:
   - type: web
     name: idea-board
     env: python
+    plan: free
     buildCommand: "pip install -r requirements.txt"
     startCommand: "gunicorn --worker-class gthread --threads 50 -w 1 app:app"
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
-      - key: DB_PATH
-        value: /var/data/board.db
-    disk:
-      name: idea-board-disk
-      mountPath: /var/data
-      sizeGB: 1
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
