@@ -77,60 +77,36 @@
 
 ---
 
-## 🚀 Quick Start (Local Setup)
+## 🚀 Getting Started
 
 ### 1. Prerequisites
-- Python 3.10+ (tested on Python 3.11 and 3.13)
-- Free account on [Neon.tech](https://neon.tech) to create a serverless Postgres database
+- Python 3.10+ (or Python 3.13)
+- Neon PostgreSQL connection string
 
-### 2. Clone Repository
-```bash
-git clone https://github.com/your-username/ideaboard.git
-cd ideaboard
-```
+### 2. Setup Environment
 
-### 3. Configure Environment Variables
-Copy the sample environment file:
-```bash
-# On Linux/macOS
-cp .env.example .env
-
-# On Windows PowerShell
-copy .env.example .env
-```
-
-Open `.env` and fill in your Neon database connection string:
+Create a `.env` file in the project root:
 ```env
-DATABASE_URL=postgresql://your_user:your_password@ep-your-instance.region.aws.neon.tech/neondb?sslmode=require
-SECRET_KEY=generate_a_random_secret_key_here
+DATABASE_URL=postgresql://neondb_owner:npg_HNTlDv9du2kL@ep-young-bird-b4215ifi.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require
+SECRET_KEY=ideaboard_neon_brutalist_super_secret_jwt_2026
 PORT=5000
 ```
 
-> **Security Note:** `.env` and database files are listed in `.gitignore` to ensure credentials and API keys are never committed to version control.
+### 3. Install Dependencies & Run
 
-### 4. Install Dependencies
 ```bash
-# Create virtual environment
-python -m venv venv
-
 # Activate virtual environment
-# Windows:
-.\venv\Scripts\activate
-# macOS / Linux:
-source venv/bin/activate
+venv\Scripts\activate   # On Windows
+# or: source venv/bin/activate  # On macOS/Linux
 
-# Install requirements
+# Install dependencies
 pip install -r requirements.txt
-```
 
-### 5. Launch the Application
-```bash
+# Start the application
 python app.py
 ```
 
-Open your browser to:
-- **Local:** `http://localhost:5000`
-- **Smartphone / Local Wi-Fi:** `http://<your-computer-ip>:5000`
+Open your browser and navigate to: **http://localhost:5000**
 
 ---
 
